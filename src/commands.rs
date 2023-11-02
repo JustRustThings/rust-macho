@@ -1650,11 +1650,18 @@ where
     }
 
     fn read_cstr(&mut self) -> Result<String> {
+        use byte_slice_cast::AsSliceOf;
         let mut v = Vec::new();
-
         self.read_until(0, &mut v)?;
 
-        Ok(String::from_utf8(v.split(|&b| b == 0).next().unwrap().to_vec())?)
+        // Try first to decode as UTF-16 and if it fails, silently fall back to
+        // proper UTF-8 decoding.
+        let str_bytes = v.split(|&b| b == 0).next().unwrap();
+        Ok(str_bytes
+            .as_slice_of::<u16>()
+            .map_err(|_| ())
+            .and_then(|str_u16s| String::from_utf16(str_u16s).map_err(|_| ()))
+            .or_else(|_| String::from_utf8(str_bytes.to_vec()))?)
     }
 }
 
